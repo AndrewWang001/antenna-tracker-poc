@@ -1,0 +1,30 @@
+# STM32 ignore rules
+
+# Workspace-level junk
+.metadata/
+
+# Project-level IDE metadata
+.settings/
+.cproject
+.project
+.mxproject
+*.launch
+
+# Build output
+Debug/
+Release/
+build/
+out/
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.d
+*.su
+
+# OS files
+.DS_Store
+Thumbs.db
