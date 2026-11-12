@@ -52,6 +52,21 @@
 
 /* USER CODE END FunctionPrototypes */
 
+/* Hook prototypes */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
+
+/* USER CODE BEGIN 4 */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
+{
+   /* A task overran its stack. Halt with interrupts off so the debugger
+    * shows which one (pcTaskName); continuing would corrupt the heap. */
+   (void)xTask;
+   (void)pcTaskName;
+   taskDISABLE_INTERRUPTS();
+   for (;;) { }
+}
+/* USER CODE END 4 */
+
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 

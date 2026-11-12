@@ -1,86 +1,89 @@
 #include "azel.h"
 #include <math.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+
+// --- WGS-84 param ------------------------------
 typedef struct {
-    float a, f, e2;
+    double a, f, e2;
 } Ellipsoid;
 
 static const Ellipsoid WGS84 = {
-    .a  = 6378137.0f,
-    .f  = 1.0f / 298.257223563f,
-    .e2 = (1.0f / 298.257223563f) * (2.0f - (1.0f / 298.257223563f))
+    .a  = 6378137.0,
+    .f  = 1.0 / 298.257223563,
+    .e2 = (1.0 / 298.257223563) * (2.0 - (1.0 / 298.257223563))
 };
 
-static inline float deg2rad(float d)
-{
-	return d * (M_PI / 180.0f);
+// --- helpers -----------------------------------------------------------
+static double deg2rad(double d) {
+    return d * (M_PI / 180.0);
+}
+static double rad2deg(double r) {
+    return r * (180.0 / M_PI);
+}
+static double wrap_360(double d) {
+    double r = fmod(d, 360.0);
+    return (r < 0.0) ? (r + 360.0) : r;
 }
 
-static inline float rad2deg(float r)
-{
-	return r * (180.0f / M_PI);
-}
+typedef struct {
+    double x, y, z;
+} Vec3;
 
-static inline float wrap_360(float d)
-{
-    float r = fmodf(d, 360.0f);
-    return (r < 0.0f) ? (r + 360.0f) : r;
-}
+static Vec3 geodetic_to_ecef(const GeoPos *g, const Ellipsoid *E) {
 
-typedef struct { float x, y, z; } Vec3;
+    const double lat = deg2rad(g->lat_deg);
+    const double lon = deg2rad(g->lon_deg);
+    const double  h  = g->h_m;
 
-static Vec3 geodetic_to_ecef(const GeoPos *g, const Ellipsoid *E)
-{
-    float lat = deg2rad(g->lat_deg);
-    float lon = deg2rad(g->lon_deg);
-    float h   = g->h_m;
+    const double sphi = sin(lat), cphi = cos(lat);
+    const double slam = sin(lon), clam = cos(lon);
 
-    float sphi = sinf(lat), cphi = cosf(lat);
-    float slam = sinf(lon), clam = cosf(lon);
-
-    float N = E->a / sqrtf(1.0f - E->e2 * sphi * sphi);
+    const double N = E->a / sqrt(1.0 - E->e2 * sphi * sphi);
 
     Vec3 p;
     p.x = (N + h) * cphi * clam;
     p.y = (N + h) * cphi * slam;
-    p.z = (N * (1 - E->e2) + h) * sphi;
+    p.z = (N * (1.0 - E->e2) + h) * sphi;
     return p;
 }
 
-static Vec3 ecef_to_enu(const Vec3 v, const GeoPos *origin)
-{
-    float lat = deg2rad(origin->lat_deg);
-    float lon = deg2rad(origin->lon_deg);
+static Vec3 ecef_to_enu(const Vec3 v, const GeoPos *origin) {
 
-    float sphi = sinf(lat), cphi = cosf(lat);
-    float slam = sinf(lon), clam = cosf(lon);
+    const double lat = deg2rad(origin->lat_deg);
+    const double lon = deg2rad(origin->lon_deg);
 
-    float e = -slam * v.x +  clam * v.y;
-    float n = -sphi*clam * v.x - sphi*slam * v.y + cphi * v.z;
-    float u =  cphi*clam * v.x +  cphi*slam * v.y + sphi * v.z;
+    const double sphi = sin(lat), cphi = cos(lat);
+    const double slam = sin(lon), clam = cos(lon);
+
+    const double e = -slam * v.x +  clam * v.y;
+    const double n = -sphi*clam * v.x - sphi*slam * v.y + cphi * v.z;
+    const double u =  cphi*clam * v.x +  cphi*slam * v.y + sphi * v.z;
 
     Vec3 enu = { e, n, u };
     return enu;
 }
 
-bool azel_compute(const GeoPos *observer, const GeoPos *target, AzEl *out)
-{
+bool azel_compute(const GeoPos *observer, const GeoPos *target, AzEl *out) {
+
     if (!observer || !target || !out) return false;
 
-    Vec3 p0  = geodetic_to_ecef(observer, &WGS84);
-    Vec3 p1  = geodetic_to_ecef(target,   &WGS84);
+    const Vec3 p0 = geodetic_to_ecef(observer, &WGS84);
+    const Vec3 p1 = geodetic_to_ecef(target,   &WGS84);
 
-    Vec3 v   = { p1.x - p0.x, p1.y - p0.y, p1.z - p0.z };
-    Vec3 enu = ecef_to_enu(v, observer);
+    const Vec3 v  = { p1.x - p0.x, p1.y - p0.y, p1.z - p0.z };
+    const Vec3 enu = ecef_to_enu(v, observer);
 
-    float r_h   = sqrtf(enu.x*enu.x + enu.y*enu.y);
-    float range = sqrtf(r_h*r_h + enu.z*enu.z);
-    float el    = atan2f(enu.z, r_h);
-    float az    = atan2f(enu.x, enu.y);
+    const double r_h   = hypot(enu.x, enu.y);
+    const double range = hypot(r_h, enu.z);
+    const double el    = atan2(enu.z, r_h);
+    const double az    = atan2(enu.x, enu.y); // atan2(E, N)
 
-    out->az_deg  = wrap_360(rad2deg(az));
-    out->el_deg  = rad2deg(el);
-    out->range_m = range;
-
+    out->az_deg   = wrap_360(rad2deg(az));
+    out->el_deg   = rad2deg(el);
+    out->range_m  = range;
     return true;
 }

@@ -1,11 +1,9 @@
 # Workspace-level junk
 .metadata/
 
-# Project-level IDE metadata
+# IDE per-user settings (the .project/.cproject/.mxproject/.ioc ARE tracked so
+# a fresh clone imports straight into STM32CubeIDE)
 .settings/
-.cproject
-.project
-.mxproject
 *.launch
 
 # Build output
@@ -22,6 +20,10 @@ out/
 *.lst
 *.d
 *.su
+
+# Host unit tests
+tests/test_runner
+tests/test_runner.exe
 
 # OS files
 .DS_Store

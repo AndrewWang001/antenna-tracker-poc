@@ -22,6 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "tracker.h"
 
 /* USER CODE END Includes */
 
@@ -52,11 +53,11 @@ const osThreadAttr_t blink01_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for PWM01 */
-osThreadId_t PWM01Handle;
-const osThreadAttr_t PWM01_attributes = {
-  .name = "PWM01",
-  .stack_size = 128 * 4,
+/* Definitions for control */
+osThreadId_t controlHandle;
+const osThreadAttr_t control_attributes = {
+  .name = "control",
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
 /* USER CODE BEGIN PV */
@@ -69,7 +70,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM3_Init(void);
 void StartBlink01(void *argument);
-void StartPWM01(void *argument);
+void StartControlTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -77,15 +78,6 @@ void StartPWM01(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void Set_Servo_Angle (TIM_HandleTypeDef *htim, uint32_t channel, int angle)
-{
-	//map angle (0-180) to PW (160-800 counts)
-	//160 for 0.5ms (0 degrees) 800 for 2.5ms (180 degrees)
-	uint32_t pulse_length = 160 + (angle *(800 - 160)/180);
-
-	__HAL_TIM_SET_COMPARE(htim, channel, pulse_length);
-}
-
 
 /* USER CODE END 0 */
 
@@ -121,7 +113,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+  tracker_hw_init();
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -147,11 +139,12 @@ int main(void)
   /* creation of blink01 */
   blink01Handle = osThreadNew(StartBlink01, NULL, &blink01_attributes);
 
-  /* creation of PWM01 */
-  PWM01Handle = osThreadNew(StartPWM01, NULL, &PWM01_attributes);
+  /* creation of control */
+  controlHandle = osThreadNew(StartControlTask, NULL, &control_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  tracker_rtos_init();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -233,9 +226,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 200-1;
+  htim3.Init.Prescaler = 64-1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 6400-1;
+  htim3.Init.Period = 20000-1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -266,6 +259,11 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM3_Init 2 */
+  /* Second servo (azimuth) on CH1 / PB4, same settings as CH2. */
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   /* USER CODE END TIM3_Init 2 */
   HAL_TIM_MspPostInit(&htim3);
@@ -362,48 +360,22 @@ static void MX_GPIO_Init(void)
 void StartBlink01(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-    osDelay(500);
-  }
-  osThreadTerminate(NULL);
+  tracker_led_task(argument);
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_StartPWM01 */
+/* USER CODE BEGIN Header_StartControlTask */
 /**
-* @brief Function implementing the PWM01 thread.
+* @brief Function implementing the control thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartPWM01 */
-void StartPWM01(void *argument)
+/* USER CODE END Header_StartControlTask */
+void StartControlTask(void *argument)
 {
-  /* USER CODE BEGIN StartPWM01 */
-  /* Infinite loop */
-  for(;;)
-  {
-
-	  //------------------------------TEST SWEEP-------------------------
-
-	  for (int angle = 0; angle <= 180; angle+= 30) {
-		  Set_Servo_Angle(&htim3, TIM_CHANNEL_2, angle);
-	  		osDelay(100);
-	  }
-	  for (int angle = 180; angle > 0; angle-= 30) {
-		  Set_Servo_Angle(&htim3, TIM_CHANNEL_2, angle);
-	  		osDelay(100);
-	  }
-
-	  //Set_Servo_Angle(&htim3, TIM_CHANNEL_2, 180);
-	  //------------------------------TEST SWEEP END--------------------
-
-
-  }
-  osThreadTerminate(NULL);
-  /* USER CODE END StartPWM01 */
+  /* USER CODE BEGIN StartControlTask */
+  tracker_control_task(argument);
+  /* USER CODE END StartControlTask */
 }
 
 /**

@@ -129,6 +129,12 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim)
     __HAL_AFIO_REMAP_TIM3_PARTIAL();
 
     /* USER CODE BEGIN TIM3_MspPostInit 1 */
+    /* PB4 -> TIM3_CH1 (azimuth servo). Partial remap above already moves
+     * CH1 to PB4; JTAG is off (NOJTAG in HAL_MspInit) so PB4 is free. */
+    GPIO_InitStruct.Pin = GPIO_PIN_4;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* USER CODE END TIM3_MspPostInit 1 */
   }
